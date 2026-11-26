@@ -19,33 +19,37 @@ docker compose exec backend python scripts/seed_db.py
 Services: `postgres` (5432, internal), `redis` (internal), `backend` (8000), `frontend` (3000). Volumes persist the
 database, cache and `backend/data`. The frontend image bakes `NEXT_PUBLIC_API_URL` at build time (build arg).
 
-## 3. Cloud deployment (free): Hugging Face Spaces + Vercel
+## 3. Cloud deployment (free): Render + Vercel
 
-The backend needs ~2–3 GB RAM (PyTorch, FinBERT, XGBoost, LSTM), so it runs on a free **Hugging Face Docker
-Space** (2 vCPU / 16 GB). The Next.js frontend runs on **Vercel**. The online AI uses a free **Groq** key
-(local Ollama is not reachable from the internet).
+* **Backend → Render free plan** (512 MB RAM) using the *lite* build `backend/requirements-cloud.txt`: the full app
+  without PyTorch, so the LSTM and FinBERT are disabled online (`ENABLE_TORCH=false`; Linear Regression, Random
+  Forest and XGBoost forecasts and the finance-lexicon sentiment model still work). Measured peak memory ≈ 170 MB.
+* **Frontend → Vercel** (free).
+* **AI → Groq** free API key (`openai/gpt-oss-120b`; the backend falls back to another available Groq model automatically).
 
-### Backend → Hugging Face Space
-1. Create a free account at huggingface.co → *Settings → Access Tokens* → new token with **Write** access.
+### Backend → Render
+1. Create a free account at render.com (sign up with GitHub) → *Account settings → API keys* → create a key.
 2. Create a free Groq key at console.groq.com/keys.
 3. From the project root:
    ```bash
-   HF_TOKEN=hf_xxx GROQ_API_KEY=gsk_xxx backend/.venv/bin/python deploy/deploy_backend_hf.py
+   RENDER_API_KEY=rnd_xxx GROQ_API_KEY=gsk_xxx backend/.venv/bin/python deploy/deploy_backend_render.py
    ```
-   The script creates `https://huggingface.co/spaces/<user>/finsight-api`, sets the configuration and secrets
-   (`SECRET_KEY`, `GROQ_API_KEY`), uploads `backend/` and waits for the build (~5–10 min the first time).
-   API URL: `https://<user>-finsight-api.hf.space` (docs at `/docs`).
+   (Alternatively: Render dashboard → *New → Blueprint* → this repository, which uses `render.yaml`, then set `GROQ_API_KEY`.)
 
-Online behaviour: `ENVIRONMENT=production`, the SQLite database resets on every restart and the demo account is
-recreated automatically (`SEED_DEMO_ON_STARTUP=true`); AAPL and NVDA models are trained in the background
-(`PRETRAIN_SYMBOLS`). Free Spaces sleep after 48 h without traffic — open the API URL once to wake it (~1 min).
+Online behaviour: `ENVIRONMENT=production`; the SQLite database resets whenever the free instance restarts and the
+demo account is recreated automatically (`SEED_DEMO_ON_STARTUP=true`). Free instances sleep after 15 minutes
+without traffic; the first request after that takes ~1 minute while the backend wakes up.
+
+### Full-feature alternative: Hugging Face Spaces (PRO)
+Docker Spaces need a Hugging Face PRO subscription. With one, `HF_TOKEN=… GROQ_API_KEY=… backend/.venv/bin/python
+deploy/deploy_backend_hf.py` deploys the full image (LSTM + FinBERT, 16 GB RAM) from `backend/Dockerfile`.
 
 ### Frontend → Vercel
 ```bash
 cd frontend
 npx vercel login
 npx vercel link --yes --project finsight-ai
-npx vercel env add NEXT_PUBLIC_API_URL production   # value: https://<user>-finsight-api.hf.space
+npx vercel env add NEXT_PUBLIC_API_URL production   # value: your Render URL, e.g. https://finsight-api.onrender.com
 npx vercel deploy --prod
 ```
 The backend already allows `https://finsight-ai*.vercel.app` via `CORS_ORIGIN_REGEX`; if you use another project

@@ -164,7 +164,7 @@ def _load_finbert() -> None:
 def start_finbert_loading() -> None:
     """Kick off background loading (called once at application startup)."""
     global _finbert_state
-    if settings.sentiment_backend.lower() == "lexicon" or _finbert_state != "disabled":
+    if settings.sentiment_backend.lower() == "lexicon" or not settings.enable_torch or _finbert_state != "disabled":
         return
     try:
         import importlib.util

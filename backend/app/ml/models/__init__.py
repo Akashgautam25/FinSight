@@ -58,6 +58,10 @@ def _xgboost_available() -> Optional[str]:
 
 
 def _torch_available() -> Optional[str]:
+    from app.config import settings
+
+    if not settings.enable_torch:
+        return "PyTorch disabled on this server (ENABLE_TORCH=false)"
     try:
         import torch  # noqa: F401
         return None

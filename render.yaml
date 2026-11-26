@@ -1,0 +1,35 @@
+# Render Blueprint — FinSight AI backend on the free plan ("lite" build, no PyTorch).
+# Deploy: Render dashboard → New → Blueprint → select this repository,
+# or run deploy/deploy_backend_render.py with RENDER_API_KEY.
+services:
+  - type: web
+    name: finsight-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ENVIRONMENT
+        value: production
+      - key: ENABLE_TORCH
+        value: "false"
+      - key: SENTIMENT_BACKEND
+        value: lexicon
+      - key: SEED_DEMO_ON_STARTUP
+        value: "true"
+      - key: LLM_PROVIDER
+        value: auto
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: CORS_ORIGIN_REGEX
+        value: https://finsight-ai[a-z0-9-]*\.vercel\.app
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false

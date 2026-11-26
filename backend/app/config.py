@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     # auto: FinBERT if `transformers` is installed (loaded in background), else lexicon
     # finbert: same as auto; lexicon: never load FinBERT
     sentiment_backend: str = "auto"
+    # false = never load PyTorch (no LSTM, no FinBERT) — for small cloud instances (~512 MB RAM)
+    enable_torch: bool = True
 
     # ── Storage ──────────────────────────────────────────────────────────────
     model_storage_path: str = str(DATA_DIR / "models")

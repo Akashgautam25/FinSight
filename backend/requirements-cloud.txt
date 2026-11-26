@@ -1,0 +1,36 @@
+# ============================================================
+# FinSight AI — "lite" cloud dependencies for small instances (~512 MB RAM),
+# e.g. Render's free tier. Same app without PyTorch / Transformers:
+#   * LSTM forecasts and FinBERT are disabled (ENABLE_TORCH=false)
+#   * Linear Regression, Random Forest and XGBoost forecasts still work
+#   * sentiment uses the finance-specific lexicon model
+#   * the AI assistant uses a cloud LLM (GROQ_API_KEY / GOOGLE_API_KEY)
+# Full feature set: requirements.txt
+# ============================================================
+
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32
+pydantic>=2.9,<3
+pydantic-settings>=2.6
+email-validator>=2.2
+python-multipart>=0.0.17
+
+sqlalchemy[asyncio]>=2.0.36,<2.1
+aiosqlite>=0.20
+asyncpg>=0.30
+redis>=5.2
+
+PyJWT>=2.9
+bcrypt>=4.2
+httpx>=0.28
+
+yfinance>=0.2.54
+pandas>=2.2
+numpy>=1.26
+scipy>=1.13
+
+scikit-learn>=1.5
+xgboost>=2.1
+joblib>=1.4
+
+reportlab>=4.2
