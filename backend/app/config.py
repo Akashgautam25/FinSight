@@ -54,6 +54,8 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Extra allowed origins as a regex, e.g. https://finsight-ai[a-z0-9-]*\.vercel\.app
+    cors_origin_regex: str = ""
     frontend_url: str = "http://localhost:3000"
 
     @property
@@ -96,6 +98,9 @@ class Settings(BaseSettings):
 
     # ── Background jobs ──────────────────────────────────────────────────────
     alert_check_interval_seconds: int = 300  # 0 disables the price-alert checker
+    # Online demo deployments (database resets on restart)
+    seed_demo_on_startup: bool = False
+    pretrain_symbols: str = ""  # e.g. "AAPL,NVDA" — trained in the background after startup
 
     # ── Email (optional; used for password-reset links) ──────────────────────
     smtp_host: str = ""

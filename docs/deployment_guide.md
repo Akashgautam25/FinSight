@@ -19,16 +19,42 @@ docker compose exec backend python scripts/seed_db.py
 Services: `postgres` (5432, internal), `redis` (internal), `backend` (8000), `frontend` (3000). Volumes persist the
 database, cache and `backend/data`. The frontend image bakes `NEXT_PUBLIC_API_URL` at build time (build arg).
 
-## 3. Cloud deployment
-* **Frontend → Vercel / Netlify:** root `frontend/`, env `NEXT_PUBLIC_API_URL=https://<your-api>`.
-* **Backend → Render / Railway / Fly.io / AWS App Runner:** build from `backend/Dockerfile`. Set:
-  * `ENVIRONMENT=production`, `SECRET_KEY=<64+ random chars>` (required in production)
-  * `DATABASE_URL=postgresql+asyncpg://…` (Neon, Supabase, RDS…)
-  * `REDIS_URL=redis://…` (Upstash, Elasticache) — optional
-  * `CORS_ORIGINS=https://<your-frontend>` and `FRONTEND_URL=https://<your-frontend>`
-  * optional: `GOOGLE_API_KEY`, `SMTP_*`
-* Mount persistent storage at `/app/data` so trained models and PDFs survive restarts.
-* Run a single backend instance (training jobs and the alert loop are in-process); scale out with a task queue later.
+## 3. Cloud deployment (free): Hugging Face Spaces + Vercel
+
+The backend needs ~2–3 GB RAM (PyTorch, FinBERT, XGBoost, LSTM), so it runs on a free **Hugging Face Docker
+Space** (2 vCPU / 16 GB). The Next.js frontend runs on **Vercel**. The online AI uses a free **Groq** key
+(local Ollama is not reachable from the internet).
+
+### Backend → Hugging Face Space
+1. Create a free account at huggingface.co → *Settings → Access Tokens* → new token with **Write** access.
+2. Create a free Groq key at console.groq.com/keys.
+3. From the project root:
+   ```bash
+   HF_TOKEN=hf_xxx GROQ_API_KEY=gsk_xxx backend/.venv/bin/python deploy/deploy_backend_hf.py
+   ```
+   The script creates `https://huggingface.co/spaces/<user>/finsight-api`, sets the configuration and secrets
+   (`SECRET_KEY`, `GROQ_API_KEY`), uploads `backend/` and waits for the build (~5–10 min the first time).
+   API URL: `https://<user>-finsight-api.hf.space` (docs at `/docs`).
+
+Online behaviour: `ENVIRONMENT=production`, the SQLite database resets on every restart and the demo account is
+recreated automatically (`SEED_DEMO_ON_STARTUP=true`); AAPL and NVDA models are trained in the background
+(`PRETRAIN_SYMBOLS`). Free Spaces sleep after 48 h without traffic — open the API URL once to wake it (~1 min).
+
+### Frontend → Vercel
+```bash
+cd frontend
+npx vercel login
+npx vercel link --yes --project finsight-ai
+npx vercel env add NEXT_PUBLIC_API_URL production   # value: https://<user>-finsight-api.hf.space
+npx vercel deploy --prod
+```
+The backend already allows `https://finsight-ai*.vercel.app` via `CORS_ORIGIN_REGEX`; if you use another project
+name, re-run the backend deploy with `FRONTEND_PROJECT=<name>`.
+
+### Other hosts
+`backend/Dockerfile` reads `$PORT`, so it also runs on Render, Railway, Fly.io, Cloud Run or AWS App Runner
+(give it at least 2 GB RAM). For persistent data set `DATABASE_URL=postgresql+asyncpg://…` (e.g. Neon) and
+mount `/app/data` for trained models and PDFs.
 
 ## 4. Production checklist
 - [ ] Strong `SECRET_KEY`, `ENVIRONMENT=production` (disables dev reset links)

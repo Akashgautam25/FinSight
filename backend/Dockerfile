@@ -1,7 +1,8 @@
 # FinSight AI — backend image (FastAPI + ML stack, CPU only)
+# Runs on Hugging Face Spaces (port 7860, user 1000), Docker Compose (PORT=8000) or any container host.
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PORT=7860
 WORKDIR /app
 
 # libgomp1: OpenMP runtime needed by XGBoost and scikit-learn
@@ -14,9 +15,11 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu torch \
     && pip install -r requirements.txt -r requirements-postgres.txt
 
 COPY . .
-RUN mkdir -p data/models data/reports && useradd --create-home finsight && chown -R finsight /app
+RUN useradd --create-home --uid 1000 finsight \
+    && mkdir -p data/models data/reports \
+    && chown -R finsight:finsight /app
 USER finsight
 
-EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fs http://localhost:8000/health || exit 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+EXPOSE 7860
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD curl -fs "http://localhost:${PORT}/health" || exit 1
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

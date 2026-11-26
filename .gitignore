@@ -44,3 +44,6 @@ backend/data/
 .coverage
 htmlcov/
 test.db
+
+# Deployment
+.vercel/

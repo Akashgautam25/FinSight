@@ -52,6 +52,23 @@ async def _warm_cache() -> None:
     await warm_up()
 
 
+async def _demo_jobs() -> None:
+    """Online demo: recreate the demo account and pre-train models (database is ephemeral)."""
+    if settings.seed_demo_on_startup:
+        try:
+            from app.seed import seed
+            logger.info(await seed())
+        except Exception:
+            logger.exception("Demo seeding failed")
+    symbols = [s.strip().upper() for s in settings.pretrain_symbols.split(",") if s.strip()]
+    if symbols:
+        from app.ml.jobs import training_jobs
+        from app.schemas.prediction import ALL_MODELS
+        for sym in symbols:
+            training_jobs.submit(sym, list(ALL_MODELS), 5)
+        logger.info("Pre-training models for %s in the background", ", ".join(symbols))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
@@ -63,7 +80,7 @@ async def lifespan(app: FastAPI):
     from concurrent.futures import ThreadPoolExecutor
     asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=32, thread_name_prefix="finsight-io"))
 
-    background = [asyncio.create_task(_warm_cache())]
+    background = [asyncio.create_task(_warm_cache()), asyncio.create_task(_demo_jobs())]
     if settings.alert_check_interval_seconds > 0:
         from app.services.alert_service import alert_loop
         background.append(asyncio.create_task(alert_loop(settings.alert_check_interval_seconds)))
@@ -91,7 +108,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" + (f"|^{settings.cors_origin_regex}$" if settings.cors_origin_regex else ""),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
