@@ -1,10 +1,9 @@
 // Landing Page — FinSight AI
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, Brain, Shield, BarChart3, ArrowRight,
-  Zap, LineChart, PieChart
+  LineChart, PieChart
 } from "lucide-react";
 
 const features = [
@@ -71,11 +70,6 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-6 pt-24 pb-20 text-center">
-        <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs font-medium">
-          <Zap className="h-3 w-3 mr-1.5 text-primary" />
-          AI-Powered Financial Intelligence Platform
-        </Badge>
-
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 leading-tight">
           Financial Intelligence,{" "}
           <span className="text-primary">Powered by AI</span>
