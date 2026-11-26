@@ -2,55 +2,27 @@
 FinSight AI — Prediction Pydantic Schemas
 """
 
-from typing import Optional, List
-from datetime import date, datetime
-from pydantic import BaseModel
+from typing import List
+
+from pydantic import BaseModel, Field, field_validator
+
+ALL_MODELS = ["linear_regression", "random_forest", "xgboost", "lstm"]
 
 
 class TrainRequest(BaseModel):
-    symbol: str
-    model_types: List[str] = ["linear_regression", "random_forest", "xgboost", "lstm"]
-    lookback_years: int = 5
+    symbol: str = Field(..., min_length=1, max_length=20)
+    model_types: List[str] = Field(default_factory=lambda: list(ALL_MODELS))
+    lookback_years: int = Field(5, ge=2, le=10)
 
+    @field_validator("symbol")
+    @classmethod
+    def upper(cls, v: str) -> str:
+        return v.strip().upper()
 
-class PredictionPoint(BaseModel):
-    target_date: date
-    predicted_price: float
-    lower_bound: Optional[float]
-    upper_bound: Optional[float]
-    confidence_score: Optional[float]
-
-
-class ModelEvaluationResponse(BaseModel):
-    model_type: str
-    model_version: str
-    mae: Optional[float]
-    mse: Optional[float]
-    rmse: Optional[float]
-    mape: Optional[float]
-    r_squared: Optional[float]
-    directional_accuracy: Optional[float]
-    trained_at: datetime
-    training_period_start: Optional[str]
-    training_period_end: Optional[str]
-
-
-class PredictionResponse(BaseModel):
-    symbol: str
-    model_type: str
-    prediction_date: date
-    predictions: List[PredictionPoint]
-    evaluation: Optional[ModelEvaluationResponse]
-    disclaimer: str = (
-        "These are model-generated estimates, not guaranteed forecasts. "
-        "Past performance does not guarantee future results."
-    )
-    is_demo: bool = False
-
-
-class AllModelPredictionsResponse(BaseModel):
-    symbol: str
-    available_models: List[str]
-    best_model: str
-    predictions_by_model: dict
-    historical_prices: List[dict]
+    @field_validator("model_types")
+    @classmethod
+    def known_models(cls, v: List[str]) -> List[str]:
+        unknown = [m for m in v if m not in ALL_MODELS]
+        if unknown:
+            raise ValueError(f"Unknown model types: {unknown}. Choose from {ALL_MODELS}")
+        return v or list(ALL_MODELS)

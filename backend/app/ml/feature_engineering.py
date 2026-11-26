@@ -1,149 +1,114 @@
 """
 FinSight AI — ML Feature Engineering
-Implements time-aware feature computation without look-ahead bias.
+
+Design decisions (documented in docs/ml_documentation.md):
+
+* **No look-ahead.** Every feature at day t uses data up to and including day t.
+* **Scale-invariant features.** Raw price levels (e.g. SMA-50 = 412.3) are
+  non-stationary and break when a stock trades outside its training range.
+  All features are ratios, returns or bounded oscillators instead.
+* **Return target.** Models predict the forward h-day return
+  r = Close[t+h] / Close[t] − 1, which is converted back to a price with
+  Close[t] · (1 + r). Tree models cannot extrapolate price levels, but they can
+  predict returns at any price level.
+* **Purged chronological split.** Train / validation / test are contiguous
+  blocks in time, and `horizon` rows are dropped at each boundary so no
+  training label overlaps the validation or test period.
 """
+
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from typing import List, Tuple
+
+from app.ml import indicators as ind
+
+FEATURE_COLUMNS = [
+    # returns
+    "daily_return", "log_return", "high_low_range",
+    # trend (price relative to moving averages)
+    "close_to_sma5", "close_to_sma10", "close_to_sma20", "close_to_sma50", "close_to_sma200",
+    "sma20_to_sma50", "sma50_to_sma200", "ema12_to_ema26",
+    # oscillators
+    "rsi_14", "macd_norm", "macd_signal_norm", "macd_hist_norm", "bb_width", "bb_pct",
+    # volatility
+    "volatility_10", "volatility_20", "atr_pct",
+    # momentum
+    "momentum_5", "momentum_10", "momentum_20", "roc_5", "roc_10",
+    # volume
+    "volume_ratio", "obv_slope",
+    # autoregressive lags
+    "lag_return_1", "lag_return_2", "lag_return_3", "lag_return_5", "lag_return_10",
+]
+
+MIN_ROWS = 260  # SMA-200 warm-up + enough samples to train on
 
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute all technical and statistical features for ML models.
-    All features use only past data (no look-ahead).
+    """Add engineered features to an OHLCV frame (sorted ascending, indexed by date).
 
-    Args:
-        df: DataFrame with columns [Open, High, Low, Close, Volume]
-            indexed by date, sorted ascending.
-
-    Returns:
-        DataFrame with original OHLCV columns + engineered features.
-        Rows with NaN in any feature column are dropped.
+    Rows where any feature is undefined (indicator warm-up) are dropped.
     """
     df = df.copy()
     df.index = pd.to_datetime(df.index)
-    df = df.sort_index(ascending=True)
+    df = df.sort_index()
 
-    close = df["Close"]
-    high = df["High"]
-    low = df["Low"]
-    volume = df["Volume"]
+    close, high, low, volume = df["Close"], df["High"], df["Low"], df["Volume"].astype(float)
 
-    # ── Returns ──────────────────────────────────────────────────────────────
     df["daily_return"] = close.pct_change()
     df["log_return"] = np.log(close / close.shift(1))
+    df["high_low_range"] = (high - low) / close
 
-    # ── Moving Averages ──────────────────────────────────────────────────────
-    for window in [5, 10, 20, 50, 200]:
-        df[f"sma_{window}"] = close.rolling(window).mean()
+    sma = {w: ind.sma(close, w) for w in (5, 10, 20, 50, 200)}
+    for w, s in sma.items():
+        df[f"close_to_sma{w}"] = close / s - 1
+    df["sma20_to_sma50"] = sma[20] / sma[50] - 1
+    df["sma50_to_sma200"] = sma[50] / sma[200] - 1
+    ema12, ema26 = close.ewm(span=12, adjust=False).mean(), close.ewm(span=26, adjust=False).mean()
+    df["ema12_to_ema26"] = ema12 / ema26 - 1
 
-    df["ema_12"] = close.ewm(span=12, adjust=False).mean()
-    df["ema_26"] = close.ewm(span=26, adjust=False).mean()
+    df["rsi_14"] = ind.rsi(close) / 100.0
+    macd_line, macd_sig, macd_hist = ind.macd(close)
+    df["macd_norm"] = macd_line / close
+    df["macd_signal_norm"] = macd_sig / close
+    df["macd_hist_norm"] = macd_hist / close
+    bb_up, bb_mid, bb_low = ind.bollinger(close)
+    df["bb_width"] = (bb_up - bb_low) / bb_mid
+    df["bb_pct"] = (close - bb_low) / (bb_up - bb_low).replace(0, np.nan)
 
-    # MA ratios (normalized)
-    df["close_to_sma20"] = close / df["sma_20"]
-    df["close_to_sma50"] = close / df["sma_50"]
-    df["sma20_to_sma50"] = df["sma_20"] / df["sma_50"]
-
-    # ── RSI ──────────────────────────────────────────────────────────────────
-    df["rsi_14"] = _compute_rsi(close, 14)
-
-    # ── MACD ─────────────────────────────────────────────────────────────────
-    df["macd"] = df["ema_12"] - df["ema_26"]
-    df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
-    df["macd_hist"] = df["macd"] - df["macd_signal"]
-
-    # ── Bollinger Bands ───────────────────────────────────────────────────────
-    bb_mid = close.rolling(20).mean()
-    bb_std = close.rolling(20).std()
-    df["bb_upper"] = bb_mid + 2 * bb_std
-    df["bb_lower"] = bb_mid - 2 * bb_std
-    df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / bb_mid
-    df["bb_pct"] = (close - df["bb_lower"]) / (df["bb_upper"] - df["bb_lower"])
-
-    # ── Volatility ────────────────────────────────────────────────────────────
     df["volatility_10"] = df["daily_return"].rolling(10).std()
     df["volatility_20"] = df["daily_return"].rolling(20).std()
+    df["atr_pct"] = ind.atr(high, low, close) / close
 
-    # ATR
-    tr = pd.concat([
-        high - low,
-        (high - close.shift(1)).abs(),
-        (low - close.shift(1)).abs(),
-    ], axis=1).max(axis=1)
-    df["atr_14"] = tr.rolling(14).mean()
-    df["atr_pct"] = df["atr_14"] / close
+    for p in (5, 10, 20):
+        df[f"momentum_{p}"] = close / close.shift(p) - 1
+    df["roc_5"] = df["daily_return"].rolling(5).sum()
+    df["roc_10"] = df["daily_return"].rolling(10).sum()
 
-    # ── Momentum ─────────────────────────────────────────────────────────────
-    for period in [5, 10, 20]:
-        df[f"momentum_{period}"] = close / close.shift(period) - 1
+    vol_sma20 = volume.rolling(20).mean()
+    df["volume_ratio"] = volume / vol_sma20.replace(0, np.nan)
+    obv = (np.sign(df["daily_return"]).fillna(0) * volume).cumsum()
+    df["obv_slope"] = obv.diff(10) / (vol_sma20.replace(0, np.nan) * 10)
 
-    # Rate of change
-    df["roc_5"] = close.pct_change(5)
-    df["roc_10"] = close.pct_change(10)
-
-    # ── Volume Features ───────────────────────────────────────────────────────
-    df["volume_sma_20"] = volume.rolling(20).mean()
-    df["volume_ratio"] = volume / df["volume_sma_20"]
-    df["obv"] = (np.sign(df["daily_return"]) * volume).cumsum()
-
-    # ── Lagged Returns ────────────────────────────────────────────────────────
-    for lag in [1, 2, 3, 5, 10]:
+    for lag in (1, 2, 3, 5, 10):
         df[f"lag_return_{lag}"] = df["daily_return"].shift(lag)
-        df[f"lag_close_{lag}"] = close.shift(lag)
 
-    # ── Lagged Close (normalized) ─────────────────────────────────────────────
-    for lag in [1, 2, 3]:
-        df[f"lag_close_norm_{lag}"] = close.shift(lag) / close.shift(lag + 1)
-
-    # Drop NaN rows (from rolling/lagged features)
-    df = df.dropna()
-
-    return df
-
-
-def _compute_rsi(series: pd.Series, window: int = 14) -> pd.Series:
-    delta = series.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window, min_periods=window).mean()
-    avg_loss = loss.rolling(window, min_periods=window).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    df = df.replace([np.inf, -np.inf], np.nan)
+    return df.dropna(subset=FEATURE_COLUMNS)
 
 
 def create_target(df: pd.DataFrame, horizon: int = 1) -> Tuple[pd.DataFrame, pd.Series]:
-    """
-    Create target variable: future close price N days ahead.
-    Uses shift(-horizon) which must only be applied AFTER the train/test split
-    boundary is enforced — target is never computed on the test set using
-    future data from beyond the split.
+    """Forward h-day return target. The last `horizon` rows (no future yet) are removed.
 
-    Returns X (features) and y (target) aligned by index.
+    Returns (X_frame, y_return) aligned on the same index. X_frame still contains
+    the Close column, which the pipeline uses to convert returns back to prices.
     """
-    target = df["Close"].shift(-horizon)
+    if horizon < 1:
+        raise ValueError("horizon must be >= 1")
+    future_return = df["Close"].shift(-horizon) / df["Close"] - 1
     X = df.iloc[:-horizon]
-    y = target.iloc[:-horizon]
+    y = future_return.iloc[:-horizon]
     return X, y
-
-
-FEATURE_COLUMNS = [
-    "daily_return", "log_return",
-    "sma_5", "sma_10", "sma_20", "sma_50",
-    "ema_12", "ema_26",
-    "close_to_sma20", "close_to_sma50", "sma20_to_sma50",
-    "rsi_14",
-    "macd", "macd_signal", "macd_hist",
-    "bb_width", "bb_pct",
-    "volatility_10", "volatility_20",
-    "atr_pct",
-    "momentum_5", "momentum_10", "momentum_20",
-    "roc_5", "roc_10",
-    "volume_ratio",
-    "lag_return_1", "lag_return_2", "lag_return_3", "lag_return_5", "lag_return_10",
-    "lag_close_norm_1", "lag_close_norm_2", "lag_close_norm_3",
-]
 
 
 def time_series_split(
@@ -151,20 +116,22 @@ def time_series_split(
     y: pd.Series,
     train_pct: float = 0.70,
     val_pct: float = 0.15,
+    gap: int = 0,
 ) -> Tuple:
-    """
-    Strictly chronological train/validation/test split.
-    No shuffling. No random state. Time order is always preserved.
+    """Strictly chronological train/validation/test split (no shuffling).
+
+    `gap` rows are purged after the train block and after the validation block
+    so that labels spanning `gap` days cannot leak across the boundaries.
     """
     n = len(X)
     train_end = int(n * train_pct)
+    val_start = train_end + gap
     val_end = int(n * (train_pct + val_pct))
+    test_start = val_end + gap
+    if val_start >= val_end or test_start >= n:
+        raise ValueError("Not enough rows for a purged train/validation/test split")
 
-    X_train = X.iloc[:train_end]
-    y_train = y.iloc[:train_end]
-    X_val = X.iloc[train_end:val_end]
-    y_val = y.iloc[train_end:val_end]
-    X_test = X.iloc[val_end:]
-    y_test = y.iloc[val_end:]
-
-    return X_train, X_val, X_test, y_train, y_val, y_test
+    return (
+        X.iloc[:train_end], X.iloc[val_start:val_end], X.iloc[test_start:],
+        y.iloc[:train_end], y.iloc[val_start:val_end], y.iloc[test_start:],
+    )

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { QueryProvider } from "@/components/layout/QueryProvider";
 import { Toaster } from "sonner";
+import { BuildWatcher } from "@/components/layout/BuildWatcher";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <QueryProvider>
+            <BuildWatcher />
             {children}
             <Toaster position="top-right" richColors />
           </QueryProvider>

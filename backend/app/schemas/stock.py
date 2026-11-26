@@ -2,50 +2,41 @@
 FinSight AI — Stock Pydantic Schemas
 """
 
-from typing import Optional, List
 from datetime import date, datetime
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
 class StockSearchResult(BaseModel):
     symbol: str
     name: str
-    exchange: Optional[str]
-    sector: Optional[str]
-    industry: Optional[str]
-    country: Optional[str]
-    currency: str
+    exchange: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    country: Optional[str] = None
+    currency: str = "USD"
 
     model_config = {"from_attributes": True}
 
 
-class StockPricePoint(BaseModel):
-    date: date
-    open: Optional[float]
-    high: Optional[float]
-    low: Optional[float]
-    close: float
-    adj_close: Optional[float]
-    volume: Optional[int]
-
-
 class FinancialMetricsResponse(BaseModel):
     symbol: str
-    market_cap: Optional[float]
-    pe_ratio: Optional[float]
-    eps: Optional[float]
-    dividend_yield: Optional[float]
-    beta: Optional[float]
-    roe: Optional[float]
-    roa: Optional[float]
-    debt_to_equity: Optional[float]
-    profit_margin: Optional[float]
-    revenue_growth: Optional[float]
-    free_cash_flow: Optional[float]
-    week_52_high: Optional[float]
-    week_52_low: Optional[float]
-    extra_metrics: Optional[dict]
-    as_of_date: Optional[date]
+    market_cap: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    eps: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    beta: Optional[float] = None
+    roe: Optional[float] = None
+    roa: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    profit_margin: Optional[float] = None
+    revenue_growth: Optional[float] = None
+    free_cash_flow: Optional[float] = None
+    week_52_high: Optional[float] = None
+    week_52_low: Optional[float] = None
+    extra_metrics: Optional[dict] = None
+    as_of_date: Optional[date] = None
     fetched_at: datetime
 
     model_config = {"from_attributes": True}
@@ -54,38 +45,53 @@ class FinancialMetricsResponse(BaseModel):
 class StockDetailResponse(BaseModel):
     symbol: str
     name: str
-    exchange: Optional[str]
-    sector: Optional[str]
-    industry: Optional[str]
-    country: Optional[str]
-    currency: str
-    current_price: Optional[float]
-    previous_close: Optional[float]
-    day_high: Optional[float]
-    day_low: Optional[float]
-    volume: Optional[int]
-    metrics: Optional[FinancialMetricsResponse]
-    last_updated: Optional[datetime]
-    data_source: str = "yfinance"
+    exchange: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    country: Optional[str] = None
+    currency: str = "USD"
+    description: Optional[str] = None
+    current_price: Optional[float] = None
+    previous_close: Optional[float] = None
+    change: Optional[float] = None
+    change_pct: Optional[float] = None
+    day_high: Optional[float] = None
+    day_low: Optional[float] = None
+    volume: Optional[int] = None
+    metrics: Optional[FinancialMetricsResponse] = None
+    last_updated: Optional[datetime] = None
+    data_source: str = "yahoo_finance"
     is_delayed: bool = True
+    is_demo: bool = False
+
+
+class IndicatorSignal(BaseModel):
+    indicator: str
+    signal: str  # bullish / bearish / neutral
+    detail: str
 
 
 class TechnicalIndicatorsResponse(BaseModel):
     symbol: str
     date: date
-    sma_20: Optional[float]
-    sma_50: Optional[float]
-    sma_200: Optional[float]
-    ema_12: Optional[float]
-    ema_26: Optional[float]
-    rsi_14: Optional[float]
-    macd: Optional[float]
-    macd_signal: Optional[float]
-    macd_hist: Optional[float]
-    bb_upper: Optional[float]
-    bb_middle: Optional[float]
-    bb_lower: Optional[float]
-    atr_14: Optional[float]
+    close: Optional[float] = None
+    sma_20: Optional[float] = None
+    sma_50: Optional[float] = None
+    sma_200: Optional[float] = None
+    ema_12: Optional[float] = None
+    ema_26: Optional[float] = None
+    rsi_14: Optional[float] = None
+    macd: Optional[float] = None
+    macd_signal: Optional[float] = None
+    macd_hist: Optional[float] = None
+    bb_upper: Optional[float] = None
+    bb_middle: Optional[float] = None
+    bb_lower: Optional[float] = None
+    atr_14: Optional[float] = None
+    volatility_30d: Optional[float] = None  # annualized, %
+    signals: List[IndicatorSignal] = []
+    overall_signal: str = "neutral"
+    is_demo: bool = False
 
 
 class MarketOverviewResponse(BaseModel):
@@ -95,8 +101,4 @@ class MarketOverviewResponse(BaseModel):
     most_active: List[dict]
     market_status: str
     as_of: datetime
-
-
-class StockCompareRequest(BaseModel):
-    symbols: List[str]
-    period: str = "1y"
+    is_demo: bool = False

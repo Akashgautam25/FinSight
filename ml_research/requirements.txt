@@ -1,0 +1,5 @@
+# Extra packages for the research notebooks (install on top of backend/requirements.txt):
+#   backend/.venv/bin/pip install -r ml_research/requirements.txt
+jupyterlab>=4.2
+matplotlib>=3.9
+seaborn>=0.13

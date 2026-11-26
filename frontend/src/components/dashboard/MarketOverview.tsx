@@ -1,92 +1,75 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { stocksApi } from "@/lib/api";
-import { formatPercent } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { formatNumber, timeAgo } from "@/lib/utils";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChangeText } from "@/components/common/ChangeText";
+import { DemoBadge } from "@/components/common/DemoBadge";
 
-export function MarketOverviewWidget() {
-  const { data, isLoading, error } = useQuery({
+export function useMarketOverview() {
+  return useQuery({
     queryKey: ["market-overview"],
     queryFn: () => stocksApi.getMarketOverview().then((r) => r.data),
-    refetchInterval: 5 * 60 * 1000, // 5 min
+    refetchInterval: 5 * 60 * 1000,
   });
+}
 
-  if (isLoading) {
-    return (
-      <div className="rounded-xl border border-border/50 bg-card p-6">
-        <div className="animate-pulse space-y-3">
-          <div className="h-5 bg-muted rounded w-32" />
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-16 bg-muted rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const indices = data?.indices || [];
+export function MarketOverviewWidget() {
+  const { data, isLoading, error } = useMarketOverview();
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h2 className="font-semibold text-sm">Market Overview</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {data?.as_of ? `Updated: ${new Date(data.as_of).toLocaleTimeString()}` : "Delayed data"}
-          </p>
+    <Card>
+      <CardHeader
+        title="Market Overview"
+        description={data?.as_of ? `Updated ${timeAgo(data.as_of)} · US market ${data.market_status}` : "Major indices and today's movers"}
+        action={<DemoBadge show={!!data?.is_demo} />}
+      />
+      <CardContent className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {isLoading
+            ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-lg" />)
+            : (data?.indices ?? []).map((idx: any) => (
+                <div key={idx.symbol} className="rounded-lg border border-border/30 bg-muted/30 p-3">
+                  <p className="truncate text-xs text-muted-foreground">{idx.name}</p>
+                  <p className="mt-1 font-mono text-base font-semibold">{formatNumber(idx.value, 0)}</p>
+                  <ChangeText value={idx.change_pct} icon className="text-xs" />
+                </div>
+              ))}
+          {error && <p className="col-span-full py-6 text-center text-sm text-muted-foreground">Failed to load market data.</p>}
         </div>
-        <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
-          {data?.market_status || "delayed"}
-        </span>
-      </div>
-
-      {/* Indices */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {indices.length > 0 ? (
-          indices.map((index: any) => (
-            <IndexCard key={index.symbol} data={index} />
-          ))
-        ) : (
-          <div className="col-span-5 text-center py-8 text-muted-foreground text-sm">
-            {error ? "Failed to load market data." : "No index data available."}
+        {!isLoading && data && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <MoverList title="Top gainers" items={data.top_gainers} />
+            <MoverList title="Top losers" items={data.top_losers} />
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function IndexCard({ data }: { data: any }) {
-  const isPositive = data.change_pct >= 0;
-  const isFlat = data.change_pct === 0;
-
+export function MoverList({ title, items }: { title: string; items: any[] }) {
   return (
-    <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-      <p className="text-xs text-muted-foreground truncate">{data.name}</p>
-      <p className="text-base font-semibold mt-1 font-mono">
-        {data.value?.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-      </p>
-      <div
-        className={`flex items-center gap-1 mt-1 text-xs font-medium ${
-          isFlat
-            ? "text-muted-foreground"
-            : isPositive
-            ? "text-profit"
-            : "text-loss"
-        }`}
-      >
-        {isFlat ? (
-          <Minus className="h-3 w-3" />
-        ) : isPositive ? (
-          <TrendingUp className="h-3 w-3" />
-        ) : (
-          <TrendingDown className="h-3 w-3" />
-        )}
-        {formatPercent(data.change_pct)}
-      </div>
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      {items?.length ? (
+        <div className="divide-y divide-border/30 rounded-lg border border-border/30">
+          {items.map((m) => (
+            <Link key={m.symbol} href={`/stocks/${m.symbol}`} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/30">
+              <span className="font-mono font-semibold">{m.symbol}</span>
+              <span className="flex items-center gap-3">
+                <span className="font-mono text-muted-foreground">{formatNumber(m.price)}</span>
+                <ChangeText value={m.change_pct} className="w-16 text-right text-xs" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No movers in this direction today.</p>
+      )}
     </div>
   );
 }

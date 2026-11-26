@@ -1,73 +1,148 @@
 """
 FinSight AI — Application Settings
-All configuration loaded from environment variables via pydantic-settings.
+All configuration is loaded from environment variables (or a .env file) via pydantic-settings.
+
+Every setting has a safe development default so the backend starts with zero configuration:
+  * SQLite database in ./data/finsight.db (PostgreSQL when DATABASE_URL points to it)
+  * In-memory cache (Redis when REDIS_URL is reachable)
+  * Live market data from Yahoo Finance with automatic fallback to simulated data
 """
 
+import logging
+import secrets
 from functools import lru_cache
+from pathlib import Path
 from typing import List
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BACKEND_DIR.parent
+DATA_DIR = BACKEND_DIR / "data"
+
+logger = logging.getLogger("finsight.config")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # backend/.env takes priority over the project-root .env
+        env_file=(str(PROJECT_ROOT / ".env"), str(BACKEND_DIR / ".env")),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
-    # App
+    # ── App ──────────────────────────────────────────────────────────────────
     app_name: str = "FinSight AI"
-    app_version: str = "1.0.0"
+    app_version: str = "1.1.0"
     environment: str = "development"
-    debug: bool = True
+    debug: bool = False  # SQL echo + verbose logs
 
-    # Database
-    database_url: str
-    sync_database_url: str
+    # ── Database ─────────────────────────────────────────────────────────────
+    database_url: str = f"sqlite+aiosqlite:///{DATA_DIR / 'finsight.db'}"
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    # ── Cache ────────────────────────────────────────────────────────────────
+    # Leave empty to use the in-process memory cache.
+    redis_url: str = ""
 
-    # Auth
-    secret_key: str
+    # ── Auth ─────────────────────────────────────────────────────────────────
+    secret_key: str = ""
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7
+    password_reset_expire_minutes: int = 30
 
-    # CORS
-    cors_origins: str = "http://localhost:3000"
+    # ── CORS ─────────────────────────────────────────────────────────────────
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    frontend_url: str = "http://localhost:3000"
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.cors_origins.split(",")]
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
-    # External APIs
-    alpha_vantage_api_key: str = ""
-    fmp_api_key: str = ""
+    # ── Market data ──────────────────────────────────────────────────────────
+    # auto: live Yahoo Finance data, falling back to simulated data on failure
+    # live: live data only (errors surface to the client)
+    # demo: simulated data only (offline demos, tests)
+    market_data_mode: str = "auto"
+
+    # ── Optional external APIs ───────────────────────────────────────────────
     finnhub_api_key: str = ""
     news_api_key: str = ""
 
-    # AI
+    # ── AI / LLM ─────────────────────────────────────────────────────────────
+    # auto: first available of Gemini → Groq → OpenAI (keys) → local Ollama → offline analyst
+    llm_provider: str = "auto"
     google_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
     openai_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
+    openai_model: str = "gpt-4o-mini"
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:3b"
+    ollama_embed_model: str = "nomic-embed-text"
+    ollama_num_ctx: int = 8192
+    llm_timeout_seconds: int = 60
 
-    # Storage
-    chromadb_path: str = "./data/chromadb"
-    model_storage_path: str = "./data/models"
+    # ── NLP ──────────────────────────────────────────────────────────────────
+    # auto: FinBERT if `transformers` is installed (loaded in background), else lexicon
+    # finbert: same as auto; lexicon: never load FinBERT
+    sentiment_backend: str = "auto"
 
-    # Email (optional)
-    smtp_host: str = "smtp.gmail.com"
+    # ── Storage ──────────────────────────────────────────────────────────────
+    model_storage_path: str = str(DATA_DIR / "models")
+    reports_storage_path: str = str(DATA_DIR / "reports")
+
+    # ── Background jobs ──────────────────────────────────────────────────────
+    alert_check_interval_seconds: int = 300  # 0 disables the price-alert checker
+
+    # ── Email (optional; used for password-reset links) ──────────────────────
+    smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    from_email: str = "noreply@finsight.ai"
+    from_email: str = "noreply@finsight.local"
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+
+def _resolve_secret_key(settings: Settings) -> None:
+    """Use the configured key, or a persisted random key in development."""
+    placeholder = not settings.secret_key or settings.secret_key.startswith("your-")
+    if not placeholder:
+        return
+    if settings.is_production:
+        raise RuntimeError("SECRET_KEY must be set in production.")
+
+    key_file = DATA_DIR / ".secret_key"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if key_file.exists():
+        settings.secret_key = key_file.read_text().strip()
+    else:
+        settings.secret_key = secrets.token_urlsafe(64)
+        key_file.write_text(settings.secret_key)
+        logger.warning("SECRET_KEY not set — generated a development key in %s", key_file)
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    _resolve_secret_key(s)
+    # Placeholder values copied from .env.example count as "not configured".
+    for field in ("google_api_key", "groq_api_key", "openai_api_key", "finnhub_api_key", "news_api_key"):
+        value = getattr(s, field)
+        if value.startswith("your_") or value.startswith("your-"):
+            setattr(s, field, "")
+    for path in (s.model_storage_path, s.reports_storage_path):
+        Path(path).mkdir(parents=True, exist_ok=True)
+    return s
 
 
 settings = get_settings()

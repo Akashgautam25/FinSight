@@ -1,54 +1,25 @@
 """
-FinSight AI — News & AI Pydantic Schemas
+FinSight AI — AI Assistant, Report and Optimization Pydantic Schemas
 """
 
-from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
-class NewsItemResponse(BaseModel):
-    id: str
-    symbol: Optional[str]
-    title: str
-    summary: Optional[str]
-    url: str
-    source: Optional[str]
-    author: Optional[str]
-    published_at: Optional[datetime]
-    category: Optional[str]
-    sentiment: Optional[str]
-    positive_score: Optional[float]
-    negative_score: Optional[float]
-    neutral_score: Optional[float]
-    compound_score: Optional[float]
+# ── AI Assistant ─────────────────────────────────────────────────────────────
 
-    model_config = {"from_attributes": True}
-
-
-class SentimentSummaryResponse(BaseModel):
-    symbol: str
-    overall_sentiment: str
-    positive_pct: float
-    negative_pct: float
-    neutral_pct: float
-    avg_compound_score: float
-    news_count: int
-    period_days: int
-    as_of: datetime
-
-
-# AI Assistant Schemas
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=4000)
     session_id: Optional[str] = None
 
 
 class SourceCitation(BaseModel):
-    type: str  # market_data / news / calculation / document
+    type: str  # market_data / technicals / news / prediction / portfolio / knowledge_base
     title: str
-    url: Optional[str]
-    timestamp: Optional[datetime]
+    url: Optional[str] = None
+    timestamp: Optional[datetime] = None
     is_verified: bool = True
 
 
@@ -58,33 +29,41 @@ class ChatResponse(BaseModel):
     content: str
     sources: List[SourceCitation] = []
     tool_calls_made: List[str] = []
+    llm_provider: str = "offline"
+    suggestions: List[str] = []
     is_ai_generated: bool = True
     disclaimer: str = "AI-generated interpretation. Verify all data before making financial decisions."
 
 
 class GenerateReportRequest(BaseModel):
-    symbol: str
+    symbol: str = Field(..., min_length=1, max_length=20)
     include_predictions: bool = True
     include_sentiment: bool = True
     report_title: Optional[str] = None
 
 
+# ── Optimization ─────────────────────────────────────────────────────────────
+
 class OptimizationRequest(BaseModel):
-    symbols: List[str]
+    symbols: List[str] = Field(..., min_length=2, max_length=15)
     period: str = "2y"
-    risk_free_rate: float = 0.05
-    min_weight: float = 0.0
-    max_weight: float = 1.0
+    risk_free_rate: float = Field(0.05, ge=0, le=0.25)
+    min_weight: float = Field(0.0, ge=0, le=1)
+    max_weight: float = Field(1.0, gt=0, le=1)
     long_only: bool = True
+    investment_amount: Optional[float] = Field(None, gt=0)
 
 
 class OptimizationResponse(BaseModel):
     method: str
-    weights: dict
+    weights: Dict[str, float]
     expected_return: float
     expected_volatility: float
     sharpe_ratio: float
-    efficient_frontier: Optional[List[dict]]
+    efficient_frontier: Optional[List[dict]] = None
+    allocation: Optional[dict] = None
+    excluded_symbols: List[str] = []
+    is_demo: bool = False
     disclaimer: str = (
         "Portfolio optimization uses historical data and mathematical models. "
         "Optimized allocations are not guaranteed to perform optimally in future markets."

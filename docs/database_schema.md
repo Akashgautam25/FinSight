@@ -1,6 +1,6 @@
 # FinSight AI — Database Schema Specification
 
-The database utilizes PostgreSQL 16 with UUID primary keys and JSONB fields for flexible semi-structured metadata.
+The schema runs on **SQLite** (default, zero-config) or **PostgreSQL 16** (Docker/production). Primary keys are UUID strings; semi-structured fields use JSON (mapped to JSONB on PostgreSQL). Tables are created automatically at startup. All user-owned rows cascade-delete with their owner.
 
 ## Tables Summary
 
@@ -25,3 +25,17 @@ The database utilizes PostgreSQL 16 with UUID primary keys and JSONB fields for 
 19. **`chat_messages`**: Chat history records storing prompt, response, sources, and verified tool executions.
 20. **`price_alerts`**: User-defined threshold notifications (price above, price below, daily % change).
 21. **`notifications`**: In-app alert queue for triggered price conditions and completed background model training.
+
+## Usage status
+
+| Table(s) | Used by |
+|---|---|
+| users, user_profiles, user_preferences | Auth, profile & settings |
+| portfolios, portfolio_holdings, portfolio_transactions | Portfolio manager (holdings rebuilt from the transaction ledger) |
+| watchlists, watchlist_stocks | Watchlists |
+| stocks | Security master — cached company profiles (name, sector, currency), refreshed monthly |
+| ml_models, model_evaluations | One row per trained model/horizon and its validation/test metrics |
+| research_reports | Generated reports (JSON payload + PDF path) |
+| chat_sessions, chat_messages | Assistant history with sources and tool calls |
+| price_alerts, notifications | Alerts and in-app notifications |
+| stock_prices, financial_metrics, stock_news, sentiment_analysis, model_predictions | Reserved for historical persistence (current data is cached rather than stored) |

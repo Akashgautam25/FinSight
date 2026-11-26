@@ -12,13 +12,13 @@ const features = [
     icon: Brain,
     title: "AI Research Assistant",
     description:
-      "Ask anything about stocks, portfolios, or markets. Gets verified data before answering.",
+      "Tool-using research agent that retrieves verified market data, news sentiment, forecasts and your portfolio before answering.",
   },
   {
     icon: TrendingUp,
     title: "ML Price Predictions",
     description:
-      "4 models (Linear Regression, Random Forest, XGBoost, LSTM) with full evaluation metrics.",
+      "Linear Regression, Random Forest, XGBoost and LSTM — evaluated honestly against a naive baseline with leakage-free splits.",
   },
   {
     icon: BarChart3,
@@ -36,13 +36,13 @@ const features = [
     icon: LineChart,
     title: "Sentiment Analysis",
     description:
-      "FinBERT-powered NLP sentiment analysis on financial news. Real-time classification.",
+      "Financial news classified with FinBERT or a finance-specific lexicon model, aggregated per stock and sector.",
   },
   {
     icon: Shield,
     title: "Risk Analytics",
     description:
-      "VaR, CVaR, Sharpe, Sortino, max drawdown, beta, correlation matrix.",
+      "VaR, CVaR, Sharpe, Sortino, max drawdown, beta vs S&P 500, correlation matrices and price alerts.",
   },
 ];
 

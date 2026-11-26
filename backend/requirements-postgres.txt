@@ -1,0 +1,2 @@
+# Optional: PostgreSQL async driver (used by Docker / production deployments).
+asyncpg>=0.30

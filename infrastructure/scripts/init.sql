@@ -1,8 +1,4 @@
--- FinSight AI — Database Schema Initialization Script
--- PostgreSQL 16 with pgvector extension
-
+-- FinSight AI — PostgreSQL initialisation (runs once when the Docker volume is created).
+-- Tables are created by the backend on startup (SQLAlchemy metadata.create_all).
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "vector";
-
--- Ensure clean startup
-COMMENT ON DATABASE finsight_db IS 'FinSight AI Financial Analytics & Intelligence Platform Database';
+COMMENT ON DATABASE finsight_db IS 'FinSight AI — financial analytics & intelligence platform';

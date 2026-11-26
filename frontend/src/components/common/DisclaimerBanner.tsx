@@ -1,11 +1,9 @@
-// Disclaimer banner — always shown, never dismissable
+// Always-visible educational disclaimer
 export function DisclaimerBanner() {
   return (
-    <div className="bg-amber-950/40 border-b border-amber-800/30 px-4 py-1.5 text-center">
-      <p className="text-xs text-amber-400/80">
-        ⚠️ FinSight AI is an educational research tool. All predictions are
-        estimates with uncertainty. This is <strong>not</strong> financial
-        advice. Data may be delayed 15–20 minutes.
+    <div className="border-b border-amber-800/30 bg-amber-950/30 px-4 py-1 text-center">
+      <p className="text-[11px] text-amber-500/90">
+        ⚠️ Educational research tool — predictions are uncertain estimates and nothing here is financial advice. Market data may be delayed 15–20 minutes.
       </p>
     </div>
   );

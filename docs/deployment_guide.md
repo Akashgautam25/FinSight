@@ -1,64 +1,38 @@
-# FinSight AI — Production Deployment Guide
+# FinSight AI — Deployment Guide
 
-## 1. Local Environment Setup
-
-### Prerequisites
-- Node.js v18.17+
-- Python 3.11+
-- PostgreSQL 16 (or Docker)
-- Redis 7 (or Docker)
-
-### Step 1: Environment Variables
-Copy `.env.example` in the project root:
+## 1. Local development (recommended for demos)
+Prerequisites: Python 3.11+, Node 18+, macOS: `brew install libomp`.
 ```bash
-cp .env.example .env
+make setup && make seed && make dev
 ```
-Populate external API keys (Alpha Vantage, Finnhub, Google Gemini) or use demo mode.
+Frontend http://localhost:3000 · API http://localhost:8000/docs · demo login `demo@finsight.ai` / `FinSight2026!`.
+Data lives in `backend/data/` (SQLite DB, development secret key, trained models, PDFs) — delete the folder to reset.
 
-### Step 2: Database Setup & Seeding
+**Offline presentation:** set `MARKET_DATA_MODE=demo` in `.env` to use simulated data only (no network needed).
+
+## 2. Docker Compose (PostgreSQL + Redis)
 ```bash
-# Start Postgres & Redis locally or with Docker
-docker run -d --name finsight_pg -p 5432:5432 -e POSTGRES_USER=finsight -e POSTGRES_PASSWORD=password -e POSTGRES_DB=finsight_db pgvector/pgvector:pg16
-docker run -d --name finsight_redis -p 6379:6379 redis:7-alpine
-
-# Run database seeder
-cd infrastructure/scripts
-python3 seed_db.py
+cp .env.example .env          # set SECRET_KEY, optional API keys
+docker compose up --build
+docker compose exec backend python scripts/seed_db.py
 ```
+Services: `postgres` (5432, internal), `redis` (internal), `backend` (8000), `frontend` (3000). Volumes persist the
+database, cache and `backend/data`. The frontend image bakes `NEXT_PUBLIC_API_URL` at build time (build arg).
 
-### Step 3: Run Backend Service
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+## 3. Cloud deployment
+* **Frontend → Vercel / Netlify:** root `frontend/`, env `NEXT_PUBLIC_API_URL=https://<your-api>`.
+* **Backend → Render / Railway / Fly.io / AWS App Runner:** build from `backend/Dockerfile`. Set:
+  * `ENVIRONMENT=production`, `SECRET_KEY=<64+ random chars>` (required in production)
+  * `DATABASE_URL=postgresql+asyncpg://…` (Neon, Supabase, RDS…)
+  * `REDIS_URL=redis://…` (Upstash, Elasticache) — optional
+  * `CORS_ORIGINS=https://<your-frontend>` and `FRONTEND_URL=https://<your-frontend>`
+  * optional: `GOOGLE_API_KEY`, `SMTP_*`
+* Mount persistent storage at `/app/data` so trained models and PDFs survive restarts.
+* Run a single backend instance (training jobs and the alert loop are in-process); scale out with a task queue later.
 
-### Step 4: Run Frontend Application
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open **http://localhost:3000** in your browser.
-
----
-
-## 2. Docker Compose Deployment (Recommended)
-Launch the entire multi-container stack with a single command:
-```bash
-docker-compose up --build
-```
-This automatically builds and orchestrates:
-- `finsight_postgres` on port 5432
-- `finsight_redis` on port 6379
-- `finsight_backend` on port 8000
-- `finsight_celery` background task worker
-- `finsight_frontend` on port 3000
-
----
-
-## 3. Production Cloud Deployment
-- **Frontend**: Deploy `frontend/` directly to **Vercel** with environment variable `NEXT_PUBLIC_API_URL`.
-- **Backend**: Deploy `backend/` as a Web Service on **Render** or **AWS ECS/App Runner** with managed PostgreSQL (Neon / Supabase) and managed Redis (Upstash).
+## 4. Production checklist
+- [ ] Strong `SECRET_KEY`, `ENVIRONMENT=production` (disables dev reset links)
+- [ ] HTTPS in front of both services; restrictive `CORS_ORIGINS`
+- [ ] PostgreSQL backups
+- [ ] SMTP configured for password resets
+- [ ] Note Yahoo Finance terms: `yfinance` is for personal/educational use; use a licensed data provider commercially
