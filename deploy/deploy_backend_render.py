@@ -64,9 +64,9 @@ def main() -> None:
     if existing:
         service = existing[0]
         sid = service["id"]
-        current = {e["envVar"]["key"]: e["envVar"]["value"] for e in call("GET", f"/services/{sid}/env-vars", params={"limit": 100})}
-        current.update(env)
-        call("PUT", f"/services/{sid}/env-vars", json=[{"key": k, "value": v} for k, v in current.items()])
+        # Update variables one by one (keeps SECRET_KEY and anything set in the dashboard)
+        for k, v in env.items():
+            call("PUT", f"/services/{sid}/env-vars/{k}", json={"value": v})
         call("POST", f"/services/{sid}/deploys", json={"clearCache": "do_not_clear"})
         print(f"Updated {name}; new deploy triggered")
     else:

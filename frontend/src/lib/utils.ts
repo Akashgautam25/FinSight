@@ -48,9 +48,18 @@ export function formatNumber(value: number | null | undefined, digits = 2): stri
   return value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+/**
+ * Parse an API timestamp. The backend stores UTC; SQLite returns it without a
+ * timezone suffix, which browsers would otherwise read as local time.
+ */
+export function parseDate(value: string): Date {
+  const naiveDateTime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value);
+  return new Date(naiveDateTime ? `${value.replace(" ", "T")}Z` : value);
+}
+
 export function formatDate(dateStr: string | null | undefined, withTime = false): string {
   if (!dateStr) return "—";
-  const d = new Date(dateStr);
+  const d = parseDate(dateStr);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", {
     year: "numeric",
@@ -62,7 +71,7 @@ export function formatDate(dateStr: string | null | undefined, withTime = false)
 
 export function timeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  const diff = Math.max(0, (Date.now() - parseDate(dateStr).getTime()) / 1000);
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
