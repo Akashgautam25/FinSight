@@ -73,7 +73,7 @@ export default function LandingPage() {
       <section className="max-w-7xl mx-auto px-6 pt-24 pb-20 text-center">
         <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs font-medium">
           <Zap className="h-3 w-3 mr-1.5 text-primary" />
-          B.Tech Final Year Project — AI + FinTech
+          AI-Powered Financial Intelligence Platform
         </Badge>
 
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 leading-tight">
@@ -135,7 +135,7 @@ export default function LandingPage() {
           Always consult a qualified financial advisor before making investment decisions.
         </p>
         <p className="text-xs text-muted-foreground mt-3">
-          © 2026 FinSight AI — B.Tech CS & AI Final Year Project
+          © 2026 FinSight AI — Intelligent Financial Research Ecosystem
         </p>
       </footer>
     </div>

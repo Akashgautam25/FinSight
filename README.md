@@ -1,7 +1,6 @@
 # FinSight AI 🧠📈
 
 > **AI-powered financial intelligence & stock research platform**
-> B.Tech final-year project · Computer Science & Artificial Intelligence
 
 FinSight AI is a full-stack **AI web application** (Next.js + FastAPI) that combines a tool-calling LLM agent,
 generative AI insights, retrieval-augmented generation with embeddings, transformer-based NLP (FinBERT), four
