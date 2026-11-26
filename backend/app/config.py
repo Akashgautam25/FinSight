@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     ollama_base_url: str = "http://localhost:11434"

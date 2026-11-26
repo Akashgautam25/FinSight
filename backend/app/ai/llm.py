@@ -112,6 +112,32 @@ def _installed(models: List[str], wanted: str) -> bool:
     return any(m == wanted or m == f"{wanted}:latest" for m in models)
 
 
+# Cloud providers retire models regularly; if the configured one is gone, use the
+# best available model from this preference list instead of failing.
+GROQ_PREFERRED = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
+_groq_state: Dict = {"at": 0.0, "model": None}
+
+
+async def _resolve_groq_model() -> str:
+    if time.monotonic() - _groq_state["at"] < 600 and _groq_state["model"]:
+        return _groq_state["model"]
+    model = settings.groq_model
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+        if resp.status_code == 200:
+            ids = {m["id"] for m in resp.json().get("data", []) if m.get("active", True)}
+            if model not in ids:
+                fallback = next((m for m in GROQ_PREFERRED if m in ids), None)
+                if fallback:
+                    logger.warning("Groq model %s is unavailable — using %s", model, fallback)
+                    model = fallback
+    except Exception:
+        pass
+    _groq_state.update(at=time.monotonic(), model=model)
+    return model
+
+
 async def available_providers() -> List[Provider]:
     pref = preferred_provider()
     if pref == "offline":
@@ -120,7 +146,7 @@ async def available_providers() -> List[Provider]:
     if settings.google_api_key:
         found.append(Provider("gemini", settings.gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai", settings.google_api_key))
     if settings.groq_api_key:
-        found.append(Provider("groq", settings.groq_model, "https://api.groq.com/openai/v1", settings.groq_api_key))
+        found.append(Provider("groq", await _resolve_groq_model(), "https://api.groq.com/openai/v1", settings.groq_api_key))
     if settings.openai_api_key:
         found.append(Provider("openai", settings.openai_model, "https://api.openai.com/v1", settings.openai_api_key))
     models = await ollama_models()

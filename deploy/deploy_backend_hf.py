@@ -72,7 +72,7 @@ def main() -> None:
         "ENVIRONMENT": "production",
         "MARKET_DATA_MODE": "auto",
         "LLM_PROVIDER": "auto",
-        "GROQ_MODEL": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "GROQ_MODEL": os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
         "SENTIMENT_BACKEND": "auto",
         "SEED_DEMO_ON_STARTUP": "true",
         "PRETRAIN_SYMBOLS": "AAPL,NVDA",
