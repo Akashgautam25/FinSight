@@ -8,6 +8,19 @@ generative AI insights, retrieval-augmented generation with embeddings, transfor
 machine-learning forecasting models and quantitative portfolio analytics. The LLM runs **locally and free with
 Ollama** (works offline) or in the cloud with a free Gemini/Groq key — and the app still works with no AI at all.
 
+## 🌐 Live demo
+
+| | |
+|---|---|
+| **App** | **https://finsight-ai-self.vercel.app** |
+| API (Swagger docs) | https://finsight-api-ykug.onrender.com/docs |
+| Demo login | `demo@finsight.ai` / `FinSight2026!` (or click **Demo Sign-in**) — or create your own account |
+
+> The backend runs on Render's free plan: after 15 minutes without visitors it sleeps, so the **first request can take
+> about a minute**. Data resets when it restarts (the demo account is recreated automatically). The online build uses
+> Groq (`gpt-oss-120b`) for AI and omits the PyTorch models (LSTM, FinBERT) to fit the free 512 MB instance — run it
+> locally for the full feature set.
+
 ![AI research assistant streaming an answer while calling tools](docs/screenshots/assistant-streaming.png)
 
 ## 🤖 The AI in FinSight
